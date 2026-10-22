@@ -1,0 +1,161 @@
+
+name: Build Web2APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      app_name:
+        description: "App name"
+        required: true
+        default: "MyWebApp"
+      website_url:
+        description: "Website URL"
+        required: true
+        default: "https://example.com"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Create Android project
+        shell: bash
+        env:
+          APP_NAME: ${{ inputs.app_name }}
+          WEBSITE_URL: ${{ inputs.website_url }}
+        run: |
+          mkdir -p Web2APK/app/src/main/java/com/darkhost/web2apk
+          mkdir -p Web2APK/app/src/main/res/values
+
+          cat > Web2APK/settings.gradle <<'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = "Web2APK"
+          include(":app")
+          EOF
+
+          cat > Web2APK/build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application' version '8.6.1' apply false
+          }
+          EOF
+
+          cat > Web2APK/gradle.properties <<'EOF'
+          android.useAndroidX=true
+          org.gradle.jvmargs=-Xmx2048m
+          EOF
+
+          cat > Web2APK/app/build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application'
+          }
+          android {
+              namespace 'com.darkhost.web2apk'
+              compileSdk 35
+              defaultConfig {
+                  applicationId 'com.darkhost.web2apk'
+                  minSdk 23
+                  targetSdk 28
+                  versionCode 1
+                  versionName '1.0'
+              }
+          }
+          EOF
+
+          cat > Web2APK/app/src/main/res/values/strings.xml <<'EOF'
+          <resources>
+              <string name="app_name">Web2APK</string>
+          </resources>
+          EOF
+
+          cat > Web2APK/app/src/main/AndroidManifest.xml <<'EOF'
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.INTERNET"/>
+              <application
+                  android:theme="@android:style/Theme.Material.Light.NoActionBar"
+                  android:label="@string/app_name"
+                  android:usesCleartextTraffic="false">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN"/>
+                          <category android:name="android.intent.category.LAUNCHER"/>
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+          cat > Web2APK/app/src/main/java/com/darkhost/web2apk/MainActivity.java <<'EOF'
+          package com.darkhost.web2apk;
+
+          import android.app.Activity;
+          import android.os.Bundle;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+          import android.webkit.WebSettings;
+          import android.graphics.Color;
+
+          public class MainActivity extends Activity {
+              @Override
+              protected void onCreate(Bundle state) {
+                  super.onCreate(state);
+                  WebView web = new WebView(this);
+                  web.setBackgroundColor(Color.WHITE);
+                  WebSettings settings = web.getSettings();
+                  settings.setJavaScriptEnabled(true);
+                  settings.setDomStorageEnabled(true);
+                  web.setWebViewClient(new WebViewClient());
+                  setContentView(web);
+                  String url = getIntent().getStringExtra("website_url");
+                  if (url == null || url.isEmpty()) {
+                      url = "https://example.com";
+                  }
+                  web.loadUrl(url);
+              }
+          }
+          EOF
+
+          printf 'APP_NAME=%s\nWEBSITE_URL=%s\n' "$APP_NAME" "$WEBSITE_URL" > Web2APK/build-info.txt
+
+      - name: Build debug APK
+        working-directory: Web2APK
+        run: |
+          gradle --version
+          gradle assembleDebug --no-daemon
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: web2apk-debug
+          path: Web2APK/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          
