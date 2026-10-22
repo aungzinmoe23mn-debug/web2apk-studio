@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="my">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0b1020">
+  <title>Web2APK Studio</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <div class="brandmark">W<span>2</span>A</div>
+      <div class="brand"><strong>Web2APK Studio</strong><small>HTML · URL · APK Builder</small></div>
+      <span class="pill"><i></i> BETA</span>
+    </header>
+    <main>
+      <section class="hero">
+        <p class="eyebrow">ANDROID APP BUILDER</p>
+        <h1>Your web.<br><span>Your Android app.</span></h1>
+        <p class="sub">HTML ကိုရေးပါ၊ Website URL ထည့်ပါ၊ Preview ကြည့်ပြီး APK Build လုပ်ပါ။</p>
+      </section>
+      <section class="panel">
+        <div class="section-head"><div><span class="step">01</span><h2>Choose source</h2></div></div>
+        <div class="tabs" role="tablist">
+          <button class="tab active" data-mode="html">HTML Editor</button>
+          <button class="tab" data-mode="url">Website URL</button>
+        </div>
+        <div id="htmlMode" class="mode">
+          <div class="editor-head"><label for="htmlCode">index.html</label><span id="sizeLabel">0 KB / 30 KB</span></div>
+          <textarea id="htmlCode" spellcheck="false" autocapitalize="off" autocomplete="off"><!doctype html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>My App</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 32px; background: #101827; color: white; }
+    .card { padding: 24px; border-radius: 18px; background: #1f2b40; }
+    button { padding: 12px 18px; border: 0; border-radius: 10px; background: #7c5cff; color: white; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Hello Android 👋</h1>
+    <p>My first HTML app.</p>
+    <button onclick="document.querySelector('p').textContent='It works!'">Tap me</button>
+  </div>
+</body>
+</html></textarea>
+          <div class="editor-actions"><button id="previewBtn" class="secondary">▶ Preview</button><button id="downloadHtml" class="secondary">↓ Save HTML</button></div>
+        </div>
+        <div id="urlMode" class="mode hidden">
+          <label for="websiteUrl">Website URL</label>
+          <input id="websiteUrl" type="url" placeholder="https://example.com" inputmode="url">
+          <p class="hint">URL mode က online website ကို WebView ထဲမှာ ဖွင့်ပေးမှာပါ။ Internet လိုအပ်ပါတယ်။</p>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="section-head"><div><span class="step">02</span><h2>App settings</h2></div></div>
+        <label for="appName">App name</label>
+        <input id="appName" maxlength="35" value="My Web App" placeholder="My Web App">
+        <div class="info-row"><span>Package ID</span><code>com.example.web2apk</code><span class="muted">MVP default</span></div>
+      </section>
+      <section class="panel">
+        <div class="section-head"><div><span class="step">03</span><h2>Build your APK</h2></div></div>
+        <p class="hint">Cloud build က GitHub Actions ကို အသုံးပြုပါတယ်။ HTML အရွယ်အစား 30 KB အောက်ထားပါ။</p>
+        <button id="buildBtn" class="primary">⚡ Build APK</button>
+        <div id="statusBox" class="status hidden" aria-live="polite"></div>
+        <a id="downloadLink" class="download hidden" href="#">Download APK</a>
+      </section>
+      <section class="panel preview-panel">
+        <div class="section-head"><div><span class="step">LIVE</span><h2>Preview</h2></div><button id="closePreview" class="icon-btn" aria-label="Hide preview">×</button></div>
+        <iframe id="preview" title="HTML preview" sandbox="allow-scripts"></iframe>
+        <p class="hint">Preview ကို သင့်စက်ထဲမှာပဲ ပြသပါတယ်။ မယုံကြည်ရတဲ့ HTML ကို သတိထားပါ။</p>
+      </section>
+      <footer>Web2APK Studio <span>•</span> Free starter project</footer>
+    </main>
+  </div>
+  <script src="./app.js"></script>
+</body>
+</html>
