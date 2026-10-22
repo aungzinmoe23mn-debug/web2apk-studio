@@ -1,0 +1,168 @@
+name: Build Web2APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'html or url'
+        required: true
+        type: choice
+        options: [html, url]
+      app_name:
+        description: 'Android app display name'
+        required: true
+        type: string
+        default: 'My Web App'
+      html_base64:
+        description: 'Base64 HTML source (HTML mode only; max 30 KB source)'
+        required: false
+        type: string
+      website_url:
+        description: 'HTTP/HTTPS website URL (URL mode only)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android platform
+        run: |
+          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Generate minimal Android project
+        env:
+          MODE: ${{ inputs.mode }}
+          APP_NAME: ${{ inputs.app_name }}
+          HTML_BASE64: ${{ inputs.html_base64 }}
+          WEBSITE_URL: ${{ inputs.website_url }}
+        run: |
+          set -e
+          mkdir -p app/src/main/java/com/example/web2apk app/src/main/assets
+          mkdir -p app/src/main/res/values
+          cat > settings.gradle <<'EOF'
+          pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
+          dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }
+          rootProject.name = 'Web2APK'
+          include ':app'
+          EOF
+          cat > build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application' version '8.7.3' apply false
+          }
+          EOF
+          cat > gradle.properties <<'EOF'
+          org.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8
+          android.useAndroidX=true
+          EOF
+          cat > app/build.gradle <<'EOF'
+          plugins { id 'com.android.application' }
+          android {
+              namespace 'com.example.web2apk'
+              compileSdk 35
+              defaultConfig {
+                  applicationId 'com.example.web2apk'
+                  minSdk 23
+                  targetSdk 28
+                  versionCode 1
+                  versionName '1.0'
+              }
+          }
+          EOF
+          cat > app/src/main/AndroidManifest.xml <<'EOF'
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+            <uses-permission android:name="android.permission.INTERNET" />
+            <application android:theme="@android:style/Theme.Material.Light.NoActionBar" android:label="@string/app_name" android:usesCleartextTraffic="false">
+              <activity android:name=".MainActivity" android:exported="true">
+                <intent-filter>
+                  <action android:name="android.intent.action.MAIN" />
+                  <category android:name="android.intent.category.LAUNCHER" />
+                </intent-filter>
+              </activity>
+            </application>
+          </manifest>
+          EOF
+          cat > app/src/main/java/com/example/web2apk/MainActivity.java <<'EOF'
+          package com.example.web2apk;
+          import android.app.Activity;
+          import android.os.Bundle;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+          import android.webkit.WebSettings;
+          import android.webkit.WebResourceRequest;
+          import android.net.Uri;
+          import android.widget.Toast;
+          public class MainActivity extends Activity {
+            WebView web;
+            @Override public void onCreate(Bundle b) {
+              super.onCreate(b);
+              web = new WebView(this);
+              setContentView(web);
+              WebSettings s = web.getSettings();
+              s.setJavaScriptEnabled(true);
+              s.setDomStorageEnabled(true);
+              web.setWebViewClient(new WebViewClient() {
+                @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                  Uri u=request.getUrl();
+                  return !(u.getScheme().equals("https") || u.getScheme().equals("http") || u.getScheme().equals("file"));
+                }
+              });
+              String mode = getString(R.string.build_mode);
+              if (mode.equals("url")) web.loadUrl(getString(R.string.website_url));
+              else web.loadUrl("file:///android_asset/index.html");
+            }
+            @Override public void onBackPressed() {
+              if(web != null && web.canGoBack()) web.goBack(); else super.onBackPressed();
+            }
+          }
+          EOF
+          # Add build mode/url values safely as XML-escaped values.
+          python3 - <<'PY'
+          import os, html
+          mode=os.environ.get("MODE","html")
+          url=os.environ.get("WEBSITE_URL","")
+          with open("app/src/main/res/values/strings.xml","w",encoding="utf-8") as f:
+              f.write('<resources><string name="app_name">'+html.escape(os.environ.get("APP_NAME","My Web App"))+'</string><string name="build_mode">'+mode+'</string><string name="website_url">'+html.escape(url)+'</string></resources>')
+          if mode == "html":
+              raw=os.environ.get("HTML_BASE64","")
+              import base64
+              data=base64.b64decode(raw, validate=True) if raw else b""
+              if not data: raise SystemExit("HTML source is missing")
+              if len(data)>30*1024: raise SystemExit("HTML source exceeds 30 KB")
+              with open("app/src/main/assets/index.html","wb") as f: f.write(data)
+          elif mode != "url":
+              raise SystemExit("Unsupported build mode")
+          PY
+          # Gradle wrapper is generated using installed Gradle distribution.
+          sudo apt-get update
+          sudo apt-get install -y gradle
+          gradle wrapper --gradle-version 8.9
+          chmod +x gradlew
+
+      - name: Build debug APK
+        run: ./gradlew --no-daemon assembleDebug
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: web2apk-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 3
